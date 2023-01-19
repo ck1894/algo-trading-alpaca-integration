@@ -4,6 +4,7 @@ from alpaca_trade_api.rest import REST, TimeFrame, TimeFrameUnit
 import alpaca_trade_api as tradeapi 
 import time 
 
+
 # Connect to Alpaca
 os.chdir("/Users/chan/Documents")
 endpoint = "https://data.alpaca.markets/v2"

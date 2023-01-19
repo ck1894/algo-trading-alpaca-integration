@@ -4,51 +4,28 @@ from alpaca_trade_api.rest import REST, TimeFrame, TimeFrameUnit
 import alpaca_trade_api as tradeapi 
 import time 
 
+# Connect to Alpaca
 os.chdir("/Users/chan/Documents")
 endpoint = "https://data.alpaca.markets/v2"
-headers = json.loads(open("keys.txt",'r').read())
-api = tradeapi.REST(headers["APCA-API-KEY-ID"], headers["APCA-API-SECRET-KEY"],base_url='https://paper-api.alpaca.markets')  
+headers = json.loads(open("keys.txt", 'r').read())
+api = tradeapi.REST(headers["APCA-API-KEY-ID"], headers["APCA-API-SECRET-KEY"], base_url='https://paper-api.alpaca.markets')  
 
+
+# Assign tickers to trade and cap position 
 tickers = ['AMZN','INTC','MSFT','AAPL','GOOG']
 max_pos = 1000
+
+
+# Create dictionary to store Stochastic Oscillator signal
 stoch_signal = {}
 for ticker in tickers:
     stoch_signal[ticker] = ""
 
-def hist_data(symbols, start_date, timeframe):
-    df_data = {}
-    api = REST(headers["APCA-API-KEY-ID"], headers["APCA-API-SECRET-KEY"], base_url=endpoint)
-    for ticker in symbols:
-        if timeframe == "Minute":
-            df_data[ticker] = api.get_bars(ticker, TimeFrame.Minute, start_date, adjustment='all').df
-        elif timeframe == "15Minute":
-            df_data[ticker] = api.get_bars(ticker, TimeFrame(15, TimeFrameUnit.Minute), start_date, adjustment='all').df
-        elif timeframe == "Hour":
-            df_data[ticker] = api.get_bars(ticker, TimeFrame.Hour, start_date, adjustment='all').df
-        else:
-            df_data[ticker] = api.get_bars(ticker, TimeFrame.Day, start_date, adjustment='all').df
-        #df_data[ticker] = df_data[ticker].between_time("09:31","16:00")    
-    return df_data
 
-def stochastic(df_dict, lookback=14, k=3, d=3):
-    for df in df_dict:
-        df_dict[df]["HH"] = df_dict[df]["high"].rolling(lookback).max()
-        df_dict[df]["LL"] = df_dict[df]["low"].rolling(lookback).min()
-        df_dict[df]["%K"] = (100 * (df_dict[df]["close"] - df_dict[df]["LL"])/(df_dict[df]["HH"]-df_dict[df]["LL"])).rolling(k).mean()
-        df_dict[df]["%D"] = df_dict[df]["%K"].rolling(d).mean()
-        df_dict[df].drop(["HH","LL"], axis=1, inplace=True)
-
-def MACD(df_dict, a=12, b=26, c=9):    
-    for df in df_dict:
-        df_dict[df]["ma_fast"] = df_dict[df]["close"].ewm(span=a, min_periods=a).mean()
-        df_dict[df]["ma_slow"] = df_dict[df]["close"].ewm(span=b, min_periods=b).mean()
-        df_dict[df]["macd"] = df_dict[df]["ma_fast"] - df_dict[df]["ma_slow"]
-        df_dict[df]["signal"] = df_dict[df]["macd"].ewm(span=c, min_periods=c).mean()
-        df_dict[df].drop(["ma_fast","ma_slow"], axis=1, inplace=True)
-
+# Define trading strategy
 def main():
     global stoch_signal
-    historical_data = hist_data(tickers, start_date =time.strftime("%Y-%m-%d"), timeframe = "Minute") 
+    historical_data = hist_data(tickers, start_date=time.strftime("%Y-%m-%d"), timeframe="Minute") 
     MACD(historical_data)
     stochastic(historical_data)
     positions = api.list_positions()
@@ -74,14 +51,16 @@ def main():
                     existing_pos == False:
                         api.submit_order(ticker, max(1,int(max_pos/historical_data[ticker]["close"].iloc[-1])), "buy", "market", "ioc")
                         time.sleep(2)
-                        print("bought {} shares of {}".format(max(1,int(max_pos/historical_data[ticker]["close"].iloc[-1])), ticker))
+                        print("bought {} shares of {}".format(max(1, int(max_pos/historical_data[ticker]["close"].iloc[-1])), ticker))
                         try:
                             filled_qty = api.get_position(ticker).qty
                             time.sleep(1)
-                            api.submit_order(ticker, int(filled_qty), "sell", "trailing_stop", "day", trail_percent = "1.5")
+                            api.submit_order(ticker, int(filled_qty), "sell", "trailing_stop", "day", trail_percent="1.5")
                         except Exception as e: 
                             print(ticker, e)
-    
+
+
+# Run testing strategy (tweak time variables accordingly to match candle interval)
 starttime = time.time()
 timeout = starttime + 60 * 60 * 1
 while time.time() <= timeout:
@@ -89,9 +68,10 @@ while time.time() <= timeout:
     main()
     time.sleep(60 - ((time.time() - starttime) % 60))
     
-    
+
+# Close out all positions after timeout
 api.close_all_positions()
 time.sleep(10)
 api.cancel_all_orders()
 time.sleep(10)
-    
+ 

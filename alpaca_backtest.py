@@ -5,6 +5,7 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 
+
 # Connect to Alpaca
 os.chdir("/Users/chan/Documents")
 endpoint = "https://data.alpaca.markets/v2"
